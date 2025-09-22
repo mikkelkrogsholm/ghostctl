@@ -152,7 +152,7 @@ def create(
     email: str = typer.Option(..., "--email", help="Member email address"),
     name: Optional[str] = typer.Option(None, "--name", help="Member name"),
     note: Optional[str] = typer.Option(None, "--note", help="Internal note about member"),
-    subscribed: bool = typer.Option(True, "--subscribed/--unsubscribed", help="Email subscription status"),
+    subscribed: bool = typer.Option(True, "--subscribed", help="Email subscription status"),
     comped: bool = typer.Option(False, "--comped", help="Give complimentary subscription"),
     labels: Optional[List[str]] = typer.Option(None, "--label", help="Label names (can be repeated)"),
 ) -> None:
@@ -214,8 +214,8 @@ def update(
     member_id: str = typer.Argument(..., help="Member ID or email"),
     name: Optional[str] = typer.Option(None, "--name", help="Member name"),
     note: Optional[str] = typer.Option(None, "--note", help="Internal note about member"),
-    subscribed: Optional[bool] = typer.Option(None, "--subscribed/--unsubscribed", help="Email subscription status"),
-    comped: Optional[bool] = typer.Option(None, "--comped/--not-comped", help="Complimentary subscription status"),
+    subscribed: Optional[bool] = typer.Option(None, "--subscribed", help="Email subscription status"),
+    comped: Optional[bool] = typer.Option(None, "--comped", help="Complimentary subscription status"),
     labels: Optional[List[str]] = typer.Option(None, "--label", help="Label names (replaces existing labels)"),
     add_labels: Optional[List[str]] = typer.Option(None, "--add-label", help="Add labels (keeps existing labels)"),
     remove_labels: Optional[List[str]] = typer.Option(None, "--remove-label", help="Remove labels"),
@@ -349,8 +349,8 @@ def import_members(
     csv_file: Path = typer.Argument(..., help="CSV file containing member data"),
     mapping: Optional[str] = typer.Option(None, "--mapping", help="Column mapping (email:Email,name:Name,labels:Labels)"),
     batch_size: int = typer.Option(100, "--batch-size", help="Number of members to import per batch"),
-    skip_duplicates: bool = typer.Option(True, "--skip-duplicates/--update-duplicates", help="Skip or update existing members"),
-    default_subscribed: bool = typer.Option(True, "--default-subscribed/--default-unsubscribed", help="Default subscription status"),
+    skip_duplicates: bool = typer.Option(True, "--skip-duplicates", help="Skip or update existing members"),
+    default_subscribed: bool = typer.Option(True, "--default-subscribed", help="Default subscription status"),
 ) -> None:
     """Import members from a CSV file.
 
@@ -519,7 +519,7 @@ def export_members(
     ctx: typer.Context,
     output_file: Path = typer.Argument(..., help="Output CSV file path"),
     filter: Optional[str] = typer.Option(None, "--filter", help="Filter members to export"),
-    include_labels: bool = typer.Option(True, "--include-labels/--no-labels", help="Include member labels"),
+    include_labels: bool = typer.Option(True, "--include-labels", help="Include member labels"),
     limit: Optional[int] = typer.Option(None, "--limit", help="Maximum number of members to export"),
 ) -> None:
     """Export members to a CSV file.

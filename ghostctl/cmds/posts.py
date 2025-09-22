@@ -275,7 +275,7 @@ def update(
     file: Optional[Path] = typer.Option(None, "--file", help="Read content from file"),
     status: Optional[str] = typer.Option(None, "--status", help="Post status"),
     slug: Optional[str] = typer.Option(None, "--slug", help="Post slug"),
-    featured: Optional[bool] = typer.Option(None, "--featured/--not-featured", help="Featured status"),
+    featured: Optional[bool] = typer.Option(None, "--featured", help="Featured status"),
     tags: Optional[List[str]] = typer.Option(None, "--tag", help="Tag names (replaces existing tags)"),
     add_tags: Optional[List[str]] = typer.Option(None, "--add-tag", help="Add tags (keeps existing tags)"),
     remove_tags: Optional[List[str]] = typer.Option(None, "--remove-tag", help="Remove tags"),
@@ -524,7 +524,7 @@ def schedule(
 def bulk_update(
     ctx: typer.Context,
     file: Path = typer.Argument(..., help="JSON file with post updates (format: [{\"id\": \"...\", \"data\": {...}}])"),
-    show_progress: bool = typer.Option(True, "--progress/--no-progress", help="Show progress bar"),
+    show_progress: bool = typer.Option(True, "--progress", help="Show progress bar"),
 ) -> None:
     """Bulk update posts from a JSON file.
 
@@ -590,7 +590,7 @@ def bulk_delete(
     ctx: typer.Context,
     post_ids: List[str] = typer.Argument(..., help="List of post IDs to delete"),
     force: bool = typer.Option(False, "--force", help="Delete without confirmation"),
-    show_progress: bool = typer.Option(True, "--progress/--no-progress", help="Show progress bar"),
+    show_progress: bool = typer.Option(True, "--progress", help="Show progress bar"),
 ) -> None:
     """Bulk delete posts by ID.
 

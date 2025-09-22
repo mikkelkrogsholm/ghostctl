@@ -103,7 +103,6 @@ def main(
         "--output",
         "-o",
         help="Output format (table, json, yaml)",
-        click_type=typer.Choice(["table", "json", "yaml"]),
     ),
     timeout: int = typer.Option(
         30,
@@ -266,13 +265,16 @@ def register_commands():
         console.print("[dim]Some commands may not be available[/dim]")
 
 
-# Register commands when module is imported
-register_commands()
+# Don't register commands immediately to avoid circular imports
+# register_commands() will be called by cli() when needed
 
 
 # Convenience function for CLI entry point
 def cli():
     """Entry point for the CLI."""
+    # Register commands on first run
+    register_commands()
+
     try:
         app()
     except KeyboardInterrupt:

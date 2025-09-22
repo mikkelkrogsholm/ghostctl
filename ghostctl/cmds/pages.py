@@ -254,7 +254,7 @@ def update(
     file: Optional[Path] = typer.Option(None, "--file", help="Read content from file"),
     status: Optional[str] = typer.Option(None, "--status", help="Page status"),
     slug: Optional[str] = typer.Option(None, "--slug", help="Page slug"),
-    featured: Optional[bool] = typer.Option(None, "--featured/--not-featured", help="Featured status"),
+    featured: Optional[bool] = typer.Option(None, "--featured", help="Featured status"),
     tags: Optional[List[str]] = typer.Option(None, "--tag", help="Tag names (replaces existing tags)"),
     add_tags: Optional[List[str]] = typer.Option(None, "--add-tag", help="Add tags (keeps existing tags)"),
     remove_tags: Optional[List[str]] = typer.Option(None, "--remove-tag", help="Remove tags"),

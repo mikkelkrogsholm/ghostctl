@@ -42,10 +42,10 @@ def get_client_and_formatter(ctx: typer.Context) -> tuple[GhostClient, OutputFor
 def all(
     ctx: typer.Context,
     output_file: Path = typer.Argument(..., help="Output file path (.json)"),
-    include_members: bool = typer.Option(True, "--include-members/--no-members", help="Include member data"),
-    include_content: bool = typer.Option(True, "--include-content/--no-content", help="Include posts and pages"),
-    include_settings: bool = typer.Option(True, "--include-settings/--no-settings", help="Include site settings"),
-    include_themes: bool = typer.Option(False, "--include-themes/--no-themes", help="Include theme information"),
+    include_members: bool = typer.Option(True, "--include-members", help="Include member data"),
+    include_content: bool = typer.Option(True, "--include-content", help="Include posts and pages"),
+    include_settings: bool = typer.Option(True, "--include-settings", help="Include site settings"),
+    include_themes: bool = typer.Option(False, "--include-themes", help="Include theme information"),
     compress: bool = typer.Option(False, "--compress", help="Compress output file"),
 ) -> None:
     """Export all site data to a JSON file.
@@ -286,7 +286,7 @@ def posts(
     ctx: typer.Context,
     output_file: Path = typer.Argument(..., help="Output file path (.json or .csv)"),
     filter: Optional[str] = typer.Option(None, "--filter", help="Filter posts to export"),
-    include_content: bool = typer.Option(True, "--include-content/--no-content", help="Include post content"),
+    include_content: bool = typer.Option(True, "--include-content", help="Include post content"),
     format: Optional[str] = typer.Option(None, "--format", help="Output format (json, csv)"),
 ) -> None:
     """Export posts to JSON or CSV file.
@@ -431,7 +431,7 @@ def members(
     ctx: typer.Context,
     output_file: Path = typer.Argument(..., help="Output file path (.csv or .json)"),
     filter: Optional[str] = typer.Option(None, "--filter", help="Filter members to export"),
-    include_labels: bool = typer.Option(True, "--include-labels/--no-labels", help="Include member labels"),
+    include_labels: bool = typer.Option(True, "--include-labels", help="Include member labels"),
     format: Optional[str] = typer.Option(None, "--format", help="Output format (csv, json)"),
 ) -> None:
     """Export members to CSV or JSON file.
@@ -571,9 +571,9 @@ def members(
 def content(
     ctx: typer.Context,
     output_file: Path = typer.Argument(..., help="Output file path (.json)"),
-    include_posts: bool = typer.Option(True, "--include-posts/--no-posts", help="Include posts"),
-    include_pages: bool = typer.Option(True, "--include-pages/--no-pages", help="Include pages"),
-    include_tags: bool = typer.Option(True, "--include-tags/--no-tags", help="Include tags"),
+    include_posts: bool = typer.Option(True, "--include-posts", help="Include posts"),
+    include_pages: bool = typer.Option(True, "--include-pages", help="Include pages"),
+    include_tags: bool = typer.Option(True, "--include-tags", help="Include tags"),
     published_only: bool = typer.Option(False, "--published-only", help="Export only published content"),
 ) -> None:
     """Export content (posts, pages, tags) to JSON file.

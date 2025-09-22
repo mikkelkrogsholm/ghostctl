@@ -30,7 +30,7 @@ def init(
     admin_key: Optional[str] = typer.Option(None, "--admin-key", help="Admin API key"),
     content_key: Optional[str] = typer.Option(None, "--content-key", help="Content API key"),
     api_version: str = typer.Option("v5", "--api-version", help="Ghost API version"),
-    interactive: bool = typer.Option(True, "--interactive/--no-interactive", help="Interactive setup"),
+    interactive: bool = typer.Option(True, "--interactive", help="Interactive setup"),
     force: bool = typer.Option(False, "--force", help="Overwrite existing profile"),
 ) -> None:
     """Initialize a new configuration profile.

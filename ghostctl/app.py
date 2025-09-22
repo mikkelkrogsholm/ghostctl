@@ -265,6 +265,7 @@ def register_commands():
             members_app,
             export_app,
             settings_app,
+            cards_app,
         )
 
         # Register command groups
@@ -277,6 +278,7 @@ def register_commands():
         app.add_typer(members_app, name="members", help="Manage members")
         app.add_typer(export_app, name="export", help="Export content")
         app.add_typer(settings_app, name="settings", help="Manage settings")
+        app.add_typer(cards_app, name="cards", help="Generate Ghost card HTML")
 
     except ImportError as e:
         console.print(f"[red]Error importing commands: {e}[/red]")

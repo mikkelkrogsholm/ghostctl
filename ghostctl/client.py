@@ -495,10 +495,16 @@ class GhostClient:
         Returns:
             Created post response data
         """
+        # Check if we're sending HTML content
+        params = {}
+        if "html" in post_data:
+            params["source"] = "html"
+
         return self._make_request(
             "POST",
             "/ghost/api/admin/posts/",
             json={"posts": [post_data]},
+            params=params,
         )
 
     def update_post(self, post_id: str, post_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -520,10 +526,16 @@ class GhostClient:
         if "updated_at" not in update_data and "updated_at" in current_post:
             update_data["updated_at"] = current_post["updated_at"]
 
+        # Check if we're sending HTML content
+        params = {}
+        if "html" in update_data:
+            params["source"] = "html"
+
         return self._make_request(
             "PUT",
             f"/ghost/api/admin/posts/{post_id}/",
             json={"posts": [update_data]},
+            params=params,
         )
 
     def delete_post(self, post_id: str) -> bool:
@@ -637,10 +649,16 @@ class GhostClient:
         Returns:
             Created page response data
         """
+        # Check if we're sending HTML content
+        params = {}
+        if "html" in page_data:
+            params["source"] = "html"
+
         return self._make_request(
             "POST",
             "/ghost/api/admin/pages/",
             json={"pages": [page_data]},
+            params=params,
         )
 
     def update_page(self, page_id: str, page_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -662,10 +680,16 @@ class GhostClient:
         if "updated_at" not in update_data and "updated_at" in current_page:
             update_data["updated_at"] = current_page["updated_at"]
 
+        # Check if we're sending HTML content
+        params = {}
+        if "html" in update_data:
+            params["source"] = "html"
+
         return self._make_request(
             "PUT",
             f"/ghost/api/admin/pages/{page_id}/",
             json={"pages": [update_data]},
+            params=params,
         )
 
     def delete_page(self, page_id: str) -> bool:

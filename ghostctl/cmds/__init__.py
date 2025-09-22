@@ -14,6 +14,7 @@ from .pages import app as pages_app
 from .members import app as members_app
 from .export import app as export_app
 from .settings import app as settings_app
+from .cards import cli as cards_app
 
 __all__ = [
     "posts_app",
@@ -25,4 +26,5 @@ __all__ = [
     "members_app",
     "export_app",
     "settings_app",
+    "cards_app",
 ]

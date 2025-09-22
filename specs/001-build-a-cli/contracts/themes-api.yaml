@@ -1,0 +1,178 @@
+openapi: 3.0.0
+info:
+  title: Ghost Themes API Contract
+  version: 1.0.0
+  description: API contract for Ghost theme management
+
+paths:
+  /themes:
+    get:
+      summary: List all themes
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  themes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Theme'
+
+  /themes/upload:
+    post:
+      summary: Upload a new theme
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Theme ZIP file
+      responses:
+        '201':
+          description: Theme uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  themes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Theme'
+        '422':
+          description: Theme validation failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ValidationError'
+
+  /themes/{name}/activate:
+    put:
+      summary: Activate a theme
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Theme activated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  themes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Theme'
+        '404':
+          description: Theme not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /themes/{name}:
+    delete:
+      summary: Delete a theme
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Theme deleted
+        '400':
+          description: Cannot delete active theme
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Theme not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Theme:
+      type: object
+      required:
+        - name
+        - package
+        - active
+      properties:
+        name:
+          type: string
+          description: Theme name from package.json
+        package:
+          type: object
+          description: Theme package.json contents
+          properties:
+            name:
+              type: string
+            version:
+              type: string
+            description:
+              type: string
+            author:
+              type: string
+            config:
+              type: object
+        active:
+          type: boolean
+          description: Whether this theme is currently active
+        templates:
+          type: array
+          items:
+            type: string
+          description: List of template files
+
+    ValidationError:
+      type: object
+      properties:
+        rule:
+          type: string
+          description: Validation rule that failed
+        message:
+          type: string
+          description: Human-readable error message
+        fatal:
+          type: boolean
+          description: Whether this error prevents theme activation
+
+    Error:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              message:
+                type: string
+              context:
+                type: string
+              type:
+                type: string

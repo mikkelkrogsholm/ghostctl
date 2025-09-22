@@ -1,0 +1,277 @@
+openapi: 3.0.0
+info:
+  title: Ghost Tags API Contract
+  version: 1.0.0
+  description: API contract for Ghost tags management
+
+paths:
+  /tags:
+    get:
+      summary: List all tags
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 15
+            maximum: 100
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: filter
+          in: query
+          schema:
+            type: string
+          description: NQL filter
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: "name asc"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tag'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+    post:
+      summary: Create a new tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tags:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TagInput'
+      responses:
+        '201':
+          description: Tag created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tag'
+
+  /tags/{id}:
+    get:
+      summary: Get a single tag
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tag'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update a tag
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tags:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TagInput'
+      responses:
+        '200':
+          description: Tag updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tag'
+
+    delete:
+      summary: Delete a tag
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Tag deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    Tag:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        feature_image:
+          type: string
+          nullable: true
+        visibility:
+          type: string
+          enum: [public, internal]
+        meta_title:
+          type: string
+          nullable: true
+        meta_description:
+          type: string
+          nullable: true
+        og_image:
+          type: string
+          nullable: true
+        og_title:
+          type: string
+          nullable: true
+        og_description:
+          type: string
+          nullable: true
+        twitter_image:
+          type: string
+          nullable: true
+        twitter_title:
+          type: string
+          nullable: true
+        twitter_description:
+          type: string
+          nullable: true
+        codeinjection_head:
+          type: string
+          nullable: true
+        codeinjection_foot:
+          type: string
+          nullable: true
+        canonical_url:
+          type: string
+          nullable: true
+        accent_color:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TagInput:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        feature_image:
+          type: string
+        visibility:
+          type: string
+          enum: [public, internal]
+        meta_title:
+          type: string
+        meta_description:
+          type: string
+        accent_color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+
+    PaginationMeta:
+      type: object
+      properties:
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            pages:
+              type: integer
+            total:
+              type: integer
+            next:
+              type: integer
+              nullable: true
+            prev:
+              type: integer
+              nullable: true
+
+    Error:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              message:
+                type: string
+              context:
+                type: string
+              type:
+                type: string
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

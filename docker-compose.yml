@@ -1,0 +1,131 @@
+version: '3.8'
+
+services:
+  # Ghost CMS instance
+  ghost:
+    image: ghost:5-alpine
+    restart: unless-stopped
+    environment:
+      # Ghost configuration
+      url: http://localhost:2368
+      NODE_ENV: development
+      # Database configuration
+      database__client: sqlite3
+      database__connection__filename: /var/lib/ghost/content/data/ghost.db
+      # Mail configuration (optional)
+      mail__transport: Direct
+      # Admin API configuration
+      admin__url: http://localhost:2368/ghost
+    volumes:
+      - ghost-data:/var/lib/ghost/content
+    ports:
+      - "2368:2368"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2368/ghost/api/admin/site/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ghostctl CLI tool
+  ghostctl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghostctl:latest
+    restart: unless-stopped
+    environment:
+      # Ghost API configuration
+      GHOST_API_URL: http://ghost:2368
+      GHOST_ADMIN_API_KEY: ${GHOST_ADMIN_API_KEY:-}
+      GHOST_API_VERSION: v5
+      # CLI configuration
+      GHOSTCTL_OUTPUT_FORMAT: table
+      GHOSTCTL_DEBUG: ${DEBUG:-false}
+    depends_on:
+      ghost:
+        condition: service_healthy
+    volumes:
+      # Mount config directory for persistent configuration
+      - ghostctl-config:/home/ghostctl/.config
+      # Mount scripts directory for automation
+      - ./scripts:/scripts:ro
+      # Mount data directory for import/export
+      - ./data:/data
+    command: tail -f /dev/null  # Keep container running
+    networks:
+      - ghost-network
+
+  # Optional: Database for production setup
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    profiles: ["production"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-ghostroot}
+      MYSQL_DATABASE: ghost
+      MYSQL_USER: ghost
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ghostpass}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - ghost-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    profiles: ["production"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/sites:/etc/nginx/sites-enabled:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx-cache:/var/cache/nginx
+    depends_on:
+      - ghost
+    networks:
+      - ghost-network
+
+volumes:
+  ghost-data:
+    driver: local
+  ghostctl-config:
+    driver: local
+  mysql-data:
+    driver: local
+  nginx-cache:
+    driver: local
+
+networks:
+  ghost-network:
+    driver: bridge
+
+# Example usage:
+#
+# 1. Start Ghost and ghostctl:
+#    docker-compose up -d
+#
+# 2. Execute ghostctl commands:
+#    docker-compose exec ghostctl ghostctl posts list
+#
+# 3. Run with production profile:
+#    docker-compose --profile production up -d
+#
+# 4. Import data:
+#    docker-compose exec ghostctl ghostctl members import /data/members.csv
+#
+# 5. Export content:
+#    docker-compose exec ghostctl ghostctl export all --output /data/backup.json
+#
+# 6. Run automation script:
+#    docker-compose exec ghostctl bash /scripts/daily-backup.sh

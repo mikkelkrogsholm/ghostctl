@@ -3,7 +3,9 @@
 This module provides commands for viewing and updating Ghost CMS site settings.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
+import builtins
+from datetime import datetime
 
 import typer
 from rich.console import Console
@@ -17,7 +19,7 @@ app = typer.Typer()
 console = Console()
 
 
-def get_client_and_formatter(ctx: typer.Context) -> tuple[GhostClient, OutputFormatter]:
+def get_client_and_formatter(ctx: typer.Context) -> Tuple[GhostClient, OutputFormatter]:
     """Get client and formatter from context."""
     profile = ctx.obj["profile"]
     if not profile:
@@ -92,7 +94,7 @@ def list(
             settings = filtered_settings
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({"settings": settings}, format_override=ctx.obj["output_format"])
+            formatter.render({"settings": settings}, format_override=ctx.obj["output_format"])
         else:
             # Table format
             table = Table(title="Site Settings")
@@ -117,7 +119,7 @@ def list(
                     else:
                         display_value = value
                     value_type = "string"
-                elif isinstance(value, (list, dict)):
+                elif isinstance(value, (builtins.list, builtins.dict)):
                     display_value = f"[dim]{type(value).__name__} ({len(value)} items)[/dim]"
                     value_type = type(value).__name__
                 else:
@@ -168,7 +170,7 @@ def get(
         value = settings[setting_key]
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "setting": setting_key,
                 "value": value
             }, format_override=ctx.obj["output_format"])
@@ -251,7 +253,7 @@ def update(
         console.print(f"[green]Setting updated successfully![/green]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "setting": setting_key,
                 "old_value": current_settings[setting_key],
                 "new_value": converted_value,
@@ -284,7 +286,6 @@ def backup(
     client, formatter = get_client_and_formatter(ctx)
 
     if not output_file:
-        from datetime import datetime
         timestamp = datetime.now().strftime("%Y-%m-%d")
         output_file = f"settings-backup-{timestamp}.json"
 
@@ -320,7 +321,7 @@ def backup(
         console.print(f"  Settings count: {len(settings)}")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "output_file": output_file,
                 "file_size": file_size,
                 "settings_count": len(settings),
@@ -444,7 +445,7 @@ def restore(
         console.print(f"  Restored {len(settings_to_restore)} settings")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "backup_file": backup_file,
                 "restored_count": len(settings_to_restore),
                 "updated_settings": updated_settings
@@ -520,7 +521,7 @@ def diff(
                 unchanged.append((key, current_value))
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "backup_file": backup_file,
                 "comparison": {
                     "changed": [{"key": k, "backup_value": bv, "current_value": cv} for k, bv, cv in changes],

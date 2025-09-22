@@ -82,10 +82,12 @@ def list(
         )
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({"members": members}, format_override=ctx.obj["output_format"])
+            formatter.render(members, format_override=ctx.obj["output_format"])
         else:
             # Table format
-            table = Table(title="Members")
+            members_list = members.get("members", [])
+
+            table = Table(title=f"Members ({len(members_list)} items)")
             table.add_column("ID", style="cyan", no_wrap=True)
             table.add_column("Email", style="bold")
             table.add_column("Name", style="green")
@@ -93,17 +95,18 @@ def list(
             table.add_column("Created", style="dim")
             table.add_column("Labels", style="magenta")
 
-            for member in members:
-                created_date = member.created_at.strftime("%Y-%m-%d") if member.created_at else "—"
-                labels = ", ".join([label.name for label in member.labels]) if hasattr(member, 'labels') and member.labels else "—"
+            for member in members_list:
+                created_at = member.get("created_at")
+                created_date = created_at[:10] if created_at else "—"  # Extract date part
+                labels = ", ".join([label.get("name", "") for label in member.get("labels", [])])
 
                 table.add_row(
-                    member.id[:8],
-                    member.email,
-                    member.name or "—",
-                    member.status or "free",
+                    member.get("id", "")[:8],
+                    member.get("email", ""),
+                    member.get("name", "") or "—",
+                    member.get("status", "free"),
                     created_date,
-                    labels[:30] + "..." if len(labels) > 30 else labels,
+                    (labels[:30] + "...") if len(labels) > 30 else labels,
                 )
 
             console.print(table)
@@ -138,8 +141,10 @@ def get(
         return
 
     try:
-        member = client.get_member(member_id, include=include)
-        formatter.output({"members": [member]}, format_override=ctx.obj["output_format"])
+        member_response = client.get_member(member_id, include=include)
+        # Extract the member from the response
+        member = member_response.get("members", [{}])[0] if member_response.get("members") else member_response
+        formatter.render({"members": [member]}, format_override=ctx.obj["output_format"])
 
     except GhostCtlError as e:
         console.print(f"[red]Error getting member: {e}[/red]")
@@ -201,7 +206,7 @@ def create(
 
         member = client.create_member(member_data)
         console.print(f"[green]Member created successfully![/green]")
-        formatter.output({"members": [member]}, format_override=ctx.obj["output_format"])
+        formatter.render({"members": [member]}, format_override=ctx.obj["output_format"])
 
     except GhostCtlError as e:
         console.print(f"[red]Error creating member: {e}[/red]")
@@ -292,7 +297,7 @@ def update(
 
         member = client.update_member(member_id, update_data)
         console.print(f"[green]Member updated successfully![/green]")
-        formatter.output({"members": [member]}, format_override=ctx.obj["output_format"])
+        formatter.render({"members": [member]}, format_override=ctx.obj["output_format"])
 
     except GhostCtlError as e:
         console.print(f"[red]Error updating member: {e}[/red]")
@@ -492,7 +497,7 @@ def import_members(
         console.print(f"  Errors: {error_count}")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "summary": {
                     "total": len(members_data),
                     "imported": imported_count,
@@ -614,7 +619,7 @@ def export_members(
         console.print(f"[green]Successfully exported {len(all_members)} members to '{output_file}'![/green]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "output_file": str(output_file),
                 "exported_count": len(all_members),
                 "file_size": output_file.stat().st_size,

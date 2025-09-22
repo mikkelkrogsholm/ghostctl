@@ -9,6 +9,7 @@ import os
 import sys
 from typing import Optional
 from pathlib import Path
+from functools import wraps
 
 import typer
 from rich.console import Console
@@ -206,12 +207,21 @@ def main(
 
 def handle_exceptions(func):
     """Decorator to handle common exceptions in commands."""
+    @wraps(func)
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except GhostCtlError as e:
-            ctx = typer.get_current_context()
-            debug = ctx.obj.get("debug", False) if ctx else False
+            # Try to get context, but don't fail if unavailable
+            try:
+                ctx = None
+                # In newer typer versions, context access might be different
+                import click
+                ctx = click.get_current_context()
+            except Exception:
+                ctx = None
+
+            debug = ctx.obj.get("debug", False) if ctx and hasattr(ctx, 'obj') and ctx.obj else False
             error_msg = format_error_for_user(e, debug)
             console.print(f"[red]{error_msg}[/red]")
             if not debug and not isinstance(e, ConfigError):
@@ -221,8 +231,16 @@ def handle_exceptions(func):
             console.print("\n[yellow]Operation cancelled by user[/yellow]")
             raise typer.Exit(130)
         except Exception as e:
-            ctx = typer.get_current_context()
-            debug = ctx.obj.get("debug", False) if ctx else False
+            # Try to get context, but don't fail if unavailable
+            try:
+                ctx = None
+                # In newer typer versions, context access might be different
+                import click
+                ctx = click.get_current_context()
+            except Exception:
+                ctx = None
+
+            debug = ctx.obj.get("debug", False) if ctx and hasattr(ctx, 'obj') and ctx.obj else False
 
             if debug:
                 console.print_exception(show_locals=True)

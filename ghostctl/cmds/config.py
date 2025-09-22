@@ -157,7 +157,7 @@ def init(
                 "has_admin_key": bool(profile.admin_api_key),
                 "has_content_key": bool(profile.content_api_key),
             }
-            formatter.output({"profile": safe_profile}, format_override=ctx.obj["output_format"])
+            formatter.render({"profile": safe_profile}, format_override=ctx.obj["output_format"])
 
     except ConfigError as e:
         console.print(f"[red]Configuration error: {e}[/red]")
@@ -282,7 +282,7 @@ def validate(
         console.print(f"  Valid profiles: {valid_count}/{total_count}")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "validation_results": validation_results,
                 "summary": {
                     "total": total_count,
@@ -354,7 +354,7 @@ def list_profiles(
                 })
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "profiles": profiles_info,
                 "default_profile": default_name,
             }, format_override=ctx.obj["output_format"])
@@ -514,7 +514,7 @@ def show_config(
     }
 
     if ctx.obj["output_format"] in ["json", "yaml"]:
-        formatter.output({
+        formatter.render({
             "config_file": str(config_file),
             "config_exists": config_exists,
             "config_size": config_file.stat().st_size if config_exists else 0,

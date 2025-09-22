@@ -118,7 +118,7 @@ def upload(
         console.print(f"[green]Image uploaded successfully![/green]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({"images": [result]}, format_override=ctx.obj["output_format"])
+            formatter.render({"images": [result]}, format_override=ctx.obj["output_format"])
         else:
             # Table format
             table = Table(title="Uploaded Image")
@@ -236,7 +236,7 @@ def bulk_upload(
 
     # Output results
     if ctx.obj["output_format"] in ["json", "yaml"]:
-        formatter.output({
+        formatter.render({
             "uploaded": uploaded_images,
             "failed": failed_uploads,
             "summary": {
@@ -298,7 +298,7 @@ def validate(
         console.print(f"[green]✓ Image is valid for upload[/green]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "valid": True,
                 "file": str(file_path),
                 "size_bytes": stat.st_size,
@@ -324,7 +324,7 @@ def validate(
         console.print(f"[red]✗ Image validation failed: {e}[/red]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "valid": False,
                 "file": str(file_path),
                 "error": str(e),
@@ -446,7 +446,7 @@ def optimize(
         console.print(f"[green]✓ Image optimized successfully![/green]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "original": {
                     "file": str(file_path),
                     "size": original_size,

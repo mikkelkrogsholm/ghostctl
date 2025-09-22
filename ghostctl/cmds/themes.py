@@ -104,7 +104,7 @@ def list(
         themes = client.get_themes()
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({"themes": themes}, format_override=ctx.obj["output_format"])
+            formatter.render({"themes": themes}, format_override=ctx.obj["output_format"])
         else:
             # Table format
             table = Table(title="Themes")
@@ -182,7 +182,7 @@ def upload(
             console.print(f"[green]Theme uploaded successfully![/green]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({"themes": [result]}, format_override=ctx.obj["output_format"])
+            formatter.render({"themes": [result]}, format_override=ctx.obj["output_format"])
         else:
             # Table format
             table = Table(title="Uploaded Theme")
@@ -229,7 +229,7 @@ def activate(
         console.print(f"[green]Theme '{theme_name}' activated successfully![/green]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({"themes": [result]}, format_override=ctx.obj["output_format"])
+            formatter.render({"themes": [result]}, format_override=ctx.obj["output_format"])
         else:
             # Show activated theme info
             theme_data = result.get("themes", [{}])[0] if result.get("themes") else result
@@ -354,7 +354,7 @@ def download(
         console.print(f"[green]Theme downloaded successfully to '{output_file}'![/green]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "theme": theme_name,
                 "output_file": str(output_file),
                 "file_size": output_file.stat().st_size,
@@ -426,7 +426,7 @@ def validate(
         console.print(f"[green]✓ Theme is valid for upload[/green]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "valid": True,
                 "file": str(theme_file),
                 "size_bytes": theme_file.stat().st_size,
@@ -460,7 +460,7 @@ def validate(
         console.print(f"[red]✗ Theme validation failed: {e}[/red]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "valid": False,
                 "file": str(theme_file),
                 "error": str(e),
@@ -536,7 +536,7 @@ def backup(
             console.print(f"[red]Failed to backup {len(failed)} themes[/red]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "backed_up": backed_up,
                 "failed": failed,
                 "output_directory": str(output_dir),

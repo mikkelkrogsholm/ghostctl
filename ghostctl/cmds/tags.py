@@ -60,16 +60,19 @@ def list(
         return
 
     try:
+        include_list = [include] if include else None
         tags = client.get_tags(
-            filter=filter,
+            filter_query=filter,
             page=page,
             limit=limit,
-            include=include,
-            order=order,
+            include=include_list,
         )
 
+        # Extract tags list from response
+        tags_list = tags.get('tags', []) if isinstance(tags, dict) else tags
+
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({"tags": tags}, format_override=ctx.obj["output_format"])
+            formatter.render({"tags": tags_list}, format_override=ctx.obj["output_format"])
         else:
             # Table format
             table = Table(title="Tags")
@@ -80,21 +83,21 @@ def list(
             table.add_column("Posts", style="blue", justify="right")
             table.add_column("Description", style="dim")
 
-            for tag in tags:
+            for tag in tags_list:
                 # Handle post count if included
                 post_count = "—"
-                if hasattr(tag, 'count') and hasattr(tag.count, 'posts'):
-                    post_count = str(tag.count.posts)
+                if isinstance(tag, dict) and 'count' in tag and 'posts' in tag['count']:
+                    post_count = str(tag['count']['posts'])
 
-                description = tag.description or "—"
+                description = tag.get('description', '') or "—"
                 if len(description) > 40:
                     description = description[:37] + "..."
 
                 table.add_row(
-                    tag.id[:8],
-                    tag.name,
-                    tag.slug,
-                    tag.visibility,
+                    tag['id'][:8],
+                    tag['name'],
+                    tag['slug'],
+                    tag['visibility'],
                     post_count,
                     description,
                 )
@@ -131,8 +134,11 @@ def get(
         return
 
     try:
-        tag = client.get_tag(tag_id, include=include)
-        formatter.output({"tags": [tag]}, format_override=ctx.obj["output_format"])
+        include_list = [include] if include else None
+        tag_response = client.get_tag(tag_id, include=include_list)
+        # Extract tag from response
+        tag = tag_response.get('tags', [{}])[0] if isinstance(tag_response, dict) else tag_response
+        formatter.render({"tags": [tag]}, format_override=ctx.obj["output_format"])
 
     except GhostCtlError as e:
         console.print(f"[red]Error getting tag: {e}[/red]")
@@ -219,7 +225,7 @@ def create(
 
         tag = client.create_tag(tag_data)
         console.print(f"[green]Tag created successfully![/green]")
-        formatter.output({"tags": [tag]}, format_override=ctx.obj["output_format"])
+        formatter.render({"tags": [tag]}, format_override=ctx.obj["output_format"])
 
     except GhostCtlError as e:
         console.print(f"[red]Error creating tag: {e}[/red]")
@@ -313,7 +319,7 @@ def update(
 
         tag = client.update_tag(tag_id, update_data)
         console.print(f"[green]Tag updated successfully![/green]")
-        formatter.output({"tags": [tag]}, format_override=ctx.obj["output_format"])
+        formatter.render({"tags": [tag]}, format_override=ctx.obj["output_format"])
 
     except GhostCtlError as e:
         console.print(f"[red]Error updating tag: {e}[/red]")
@@ -344,15 +350,19 @@ def delete(
     try:
         # Get tag details for confirmation
         if not force:
-            tag = client.get_tag(tag_id, include="count.posts")
+            include_list = ["count.posts"]
+            tag_response = client.get_tag(tag_id, include=include_list)
+            # Extract tag from response
+            tag = tag_response.get('tags', [{}])[0] if isinstance(tag_response, dict) else tag_response
+
             console.print(f"[yellow]About to delete tag:[/yellow]")
-            console.print(f"  ID: {tag.id}")
-            console.print(f"  Name: {tag.name}")
-            console.print(f"  Visibility: {tag.visibility}")
+            console.print(f"  ID: {tag.get('id', 'N/A')}")
+            console.print(f"  Name: {tag.get('name', 'N/A')}")
+            console.print(f"  Visibility: {tag.get('visibility', 'N/A')}")
 
             # Show post count if available
-            if hasattr(tag, 'count') and hasattr(tag.count, 'posts'):
-                post_count = tag.count.posts
+            if 'count' in tag and 'posts' in tag['count']:
+                post_count = tag['count']['posts']
                 console.print(f"  Posts using this tag: {post_count}")
                 if post_count > 0:
                     console.print(f"  [yellow]Warning: This tag is used by {post_count} post(s)[/yellow]")
@@ -407,17 +417,18 @@ def bulk_update(
 
     try:
         # First, get all tags matching the filter
-        tags = client.get_tags(filter=filter, limit="all")
+        tags_response = client.get_tags(filter_query=filter, limit=1000)
+        tags_list = tags_response.get('tags', []) if isinstance(tags_response, dict) else tags_response
 
-        if not tags:
+        if not tags_list:
             console.print("[yellow]No tags match the specified filter[/yellow]")
             return
 
-        console.print(f"[blue]Found {len(tags)} tags matching filter[/blue]")
+        console.print(f"[blue]Found {len(tags_list)} tags matching filter[/blue]")
 
         # Build update data
         updated_count = 0
-        for tag in tags:
+        for tag in tags_list:
             update_data = {}
 
             if visibility:
@@ -425,19 +436,19 @@ def bulk_update(
             if accent_color:
                 update_data["accent_color"] = accent_color
             if meta_title_template:
-                update_data["meta_title"] = meta_title_template.format(name=tag.name)
+                update_data["meta_title"] = meta_title_template.format(name=tag.get('name', ''))
             if meta_description_template:
-                update_data["meta_description"] = meta_description_template.format(name=tag.name)
+                update_data["meta_description"] = meta_description_template.format(name=tag.get('name', ''))
 
             if update_data:
                 try:
-                    client.update_tag(tag.id, update_data)
+                    client.update_tag(tag.get('id'), update_data)
                     updated_count += 1
-                    console.print(f"  ✓ Updated: {tag.name}")
+                    console.print(f"  ✓ Updated: {tag.get('name', 'Unknown')}")
                 except GhostCtlError as e:
-                    console.print(f"  ✗ Failed to update {tag.name}: {e}")
+                    console.print(f"  ✗ Failed to update {tag.get('name', 'Unknown')}: {e}")
 
-        console.print(f"[green]Successfully updated {updated_count}/{len(tags)} tags[/green]")
+        console.print(f"[green]Successfully updated {updated_count}/{len(tags_list)} tags[/green]")
 
     except GhostCtlError as e:
         console.print(f"[red]Error in bulk update: {e}[/red]")

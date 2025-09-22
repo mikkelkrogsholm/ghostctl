@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  ghost:
+    image: ghost:5-alpine
+    restart: unless-stopped
+    ports:
+      - "2368:2368"
+    environment:
+      # Development mode for easier setup
+      NODE_ENV: development
+      # URL configuration
+      url: http://localhost:2368
+      # Database - using SQLite for simplicity
+      database__client: sqlite3
+      database__connection__filename: /var/lib/ghost/content/data/ghost.db
+      # Disable SSL in development
+      server__host: '0.0.0.0'
+      # Mail configuration (use Direct for testing)
+      mail__transport: Direct
+    volumes:
+      # Persist data between restarts
+      - ghost-data:/var/lib/ghost/content
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2368/ghost/"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 60s
+
+volumes:
+  ghost-data:
+    driver: local

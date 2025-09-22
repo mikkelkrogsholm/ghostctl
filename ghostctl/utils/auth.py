@@ -34,6 +34,8 @@ class JWTAuth:
             raise AuthenticationError("Invalid admin key format. Expected format: id:secret")
 
         self.key_id, self.secret = parts
+        # Decode the secret from hex as required by Ghost API
+        self.secret_bytes = bytes.fromhex(self.secret)
         self._token_cache: Optional[str] = None
         self._token_expires_at: Optional[float] = None
         self._cache_stats = {"hits": 0, "misses": 0}
@@ -52,6 +54,11 @@ class JWTAuth:
         """
         try:
             now = int(time.time())
+            header = {
+                "alg": "HS256",
+                "typ": "JWT",
+                "kid": self.key_id
+            }
             payload = {
                 "iss": self.key_id,
                 "aud": "/admin/",
@@ -59,7 +66,7 @@ class JWTAuth:
                 "exp": now + expires_in,
             }
 
-            token = jwt.encode(payload, self.secret, algorithm="HS256")
+            token = jwt.encode(payload, self.secret_bytes, algorithm="HS256", headers=header)
             return token
 
         except Exception as e:
@@ -117,7 +124,7 @@ class JWTAuth:
         try:
             payload = jwt.decode(
                 token,
-                self.secret,
+                self.secret_bytes,
                 algorithms=["HS256"],
                 audience="/admin/",
                 issuer=self.key_id

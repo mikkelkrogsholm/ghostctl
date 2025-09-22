@@ -78,7 +78,7 @@ def list(
         # Fetch single page
         include_list = include.split(",") if include else None
         posts = client.get_posts(
-            filter_query=filter,
+            filter=filter,
             page=page,
             limit=limit,
             include=include_list,
@@ -86,7 +86,7 @@ def list(
         )
 
     if ctx.obj["output_format"] in ["json", "yaml"]:
-        formatter.output(posts, format_override=ctx.obj["output_format"])
+        formatter.render(posts, format_override=ctx.obj["output_format"])
     else:
         # Table format
         posts_list = posts.get("posts", [])
@@ -167,7 +167,7 @@ def get(
 
     include_list = include.split(",") if include else None
     post = client.get_post(post_id, include=include_list)
-    formatter.output({"posts": [post]}, format_override=ctx.obj["output_format"])
+    formatter.render({"posts": [post]}, format_override=ctx.obj["output_format"])
 
 
 @app.command()
@@ -262,7 +262,7 @@ def create(
 
     post = client.create_post(post_data)
     console.print(f"[green]Post created successfully![/green]")
-    formatter.output({"posts": [post]}, format_override=ctx.obj["output_format"])
+    formatter.render({"posts": [post]}, format_override=ctx.obj["output_format"])
 
 
 @app.command()
@@ -393,7 +393,7 @@ def update(
 
     post = client.update_post(post_id, update_data)
     console.print(f"[green]Post updated successfully![/green]")
-    formatter.output({"posts": [post]}, format_override=ctx.obj["output_format"])
+    formatter.render({"posts": [post]}, format_override=ctx.obj["output_format"])
 
 
 @app.command()
@@ -486,7 +486,9 @@ def publish(
     if published_at_dt:
         update_data["published_at"] = published_at_dt.isoformat()
     else:
-        update_data["published_at"] = datetime.now().isoformat()
+        # Use UTC time for consistency with Ghost API expectations
+        from datetime import timezone
+        update_data["published_at"] = datetime.now(timezone.utc).isoformat()
 
     post = client.update_post(post_id, update_data)
 
@@ -495,7 +497,7 @@ def publish(
     else:
         console.print(f"[green]Post published successfully![/green]")
 
-    formatter.output({"posts": [post]}, format_override=ctx.obj["output_format"])
+    formatter.render({"posts": [post]}, format_override=ctx.obj["output_format"])
 
 
 @app.command()
@@ -581,7 +583,7 @@ def bulk_update(
         console.print(f"[green]All {len(results)} posts updated successfully![/green]")
 
     if ctx.obj["output_format"] in ["json", "yaml"]:
-        formatter.output({"results": results}, format_override=ctx.obj["output_format"])
+        formatter.render({"results": results}, format_override=ctx.obj["output_format"])
 
 
 @app.command()
@@ -642,7 +644,7 @@ def bulk_delete(
         console.print(f"[green]All {len(results)} posts deleted successfully![/green]")
 
     if ctx.obj["output_format"] in ["json", "yaml"]:
-        formatter.output({"results": results}, format_override=ctx.obj["output_format"])
+        formatter.render({"results": results}, format_override=ctx.obj["output_format"])
 
 
 if __name__ == "__main__":

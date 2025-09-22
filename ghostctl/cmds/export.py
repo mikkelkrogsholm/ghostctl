@@ -269,7 +269,7 @@ def all(
             console.print(f"  Themes: {len(data['themes'])}")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "output_file": str(output_file),
                 "file_size": file_size,
                 "compressed": compress,
@@ -414,7 +414,7 @@ def posts(
         console.print(f"  File size: {file_size:,} bytes ({file_size / 1024 / 1024:.1f} MB)")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "output_file": str(output_file),
                 "format": export_format,
                 "exported_count": len(all_posts),
@@ -555,7 +555,7 @@ def members(
         console.print(f"  File size: {file_size:,} bytes ({file_size / 1024:.1f} KB)")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "output_file": str(output_file),
                 "format": export_format,
                 "exported_count": len(all_members),
@@ -714,7 +714,7 @@ def content(
             console.print(f"  Tags: {len(data['tags'])}")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.output({
+            formatter.render({
                 "output_file": str(output_file),
                 "file_size": file_size,
                 "summary": {k: len(v) if isinstance(v, list) else 1 for k, v in data.items()}

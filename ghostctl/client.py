@@ -25,6 +25,7 @@ from .exceptions import (
     ServerError,
     RateLimitError,
     AuthenticationError,
+    MaxRetriesExceededError,
 )
 
 
@@ -233,6 +234,10 @@ class GhostClient:
         if remaining and remaining.isdigit() and int(remaining) < 10:
             print(f"Warning: Only {remaining} API requests remaining")
 
+        # Handle responses without content (like DELETE operations)
+        if response.status_code == 204:
+            return {}
+
         return response.json()
 
     def _make_request(
@@ -400,7 +405,7 @@ class GhostClient:
         self,
         limit: int = 15,
         page: int = 1,
-        filter_query: Optional[str] = None,
+        filter: Optional[str] = None,
         include: Optional[List[str]] = None,
         fields: Optional[List[str]] = None,
         formats: Optional[List[str]] = None,
@@ -411,18 +416,19 @@ class GhostClient:
         Args:
             limit: Number of posts to retrieve
             page: Page number
-            filter_query: Filter query string
+            filter: Filter query string
             include: Related data to include
             fields: Fields to return
             formats: Content formats to include
+            order: Order by clause
 
         Returns:
             Posts response data
         """
         params = {"limit": limit, "page": page}
 
-        if filter_query:
-            params["filter"] = filter_query
+        if filter:
+            params["filter"] = filter
         if include:
             params["include"] = ",".join(include)
         if fields:
@@ -505,10 +511,19 @@ class GhostClient:
         Returns:
             Updated post response data
         """
+        # First, get the current post to obtain the updated_at field for collision detection
+        current_post_response = self._make_request("GET", f"/ghost/api/admin/posts/{post_id}/")
+        current_post = current_post_response.get("posts", [{}])[0]
+
+        # Include the updated_at field from current post for collision detection
+        update_data = post_data.copy()
+        if "updated_at" not in update_data and "updated_at" in current_post:
+            update_data["updated_at"] = current_post["updated_at"]
+
         return self._make_request(
             "PUT",
             f"/ghost/api/admin/posts/{post_id}/",
-            json={"posts": [post_data]},
+            json={"posts": [update_data]},
         )
 
     def delete_post(self, post_id: str) -> bool:
@@ -521,10 +536,163 @@ class GhostClient:
             True if deletion was successful
         """
         try:
-            self._make_request("DELETE", f"/ghost/api/admin/posts/{post_id}/")
+            result = self._make_request("DELETE", f"/ghost/api/admin/posts/{post_id}/")
+            # DELETE operations return empty dict for 204 status code
             return True
         except NotFoundError:
             return False
+
+    # Pages API methods
+    def get_pages(
+        self,
+        limit: int = 15,
+        page: int = 1,
+        filter: Optional[str] = None,
+        include: Optional[str] = None,
+        fields: Optional[str] = None,
+        formats: Optional[str] = None,
+        order: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get pages from Ghost CMS.
+
+        Args:
+            limit: Number of pages to retrieve
+            page: Page number
+            filter: Filter query string
+            include: Related data to include (comma-separated string or None)
+            fields: Fields to return (comma-separated string or None)
+            formats: Content formats to include (comma-separated string or None)
+            order: Sort order
+
+        Returns:
+            Pages response data
+        """
+        params = {"limit": limit, "page": page}
+
+        if filter:
+            params["filter"] = filter
+        if include:
+            params["include"] = include
+        if fields:
+            params["fields"] = fields
+        if formats:
+            params["formats"] = formats
+        if order:
+            params["order"] = order
+
+        return self._make_request("GET", "/ghost/api/admin/pages/", params=params)
+
+    def get_all_pages(
+        self,
+        filter_query: Optional[str] = None,
+        include: Optional[List[str]] = None,
+        show_progress: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Get all pages with pagination handling.
+
+        Args:
+            filter_query: Filter query string
+            include: Related data to include
+            show_progress: Whether to show progress bar
+
+        Returns:
+            List of all pages
+        """
+        params = {}
+        if filter_query:
+            params["filter"] = filter_query
+        if include:
+            params["include"] = ",".join(include)
+
+        return self.get_all_items(
+            "/ghost/api/admin/pages/",
+            "pages",
+            show_progress=show_progress,
+            progress_description="Fetching pages",
+            params=params,
+        )
+
+    def get_page(self, page_id: str, include: Optional[str] = None) -> Dict[str, Any]:
+        """Get a specific page by ID.
+
+        Args:
+            page_id: Page ID
+            include: Related data to include (comma-separated string)
+
+        Returns:
+            Page response data
+        """
+        params = {}
+        if include:
+            params["include"] = include
+
+        return self._make_request("GET", f"/ghost/api/admin/pages/{page_id}/", params=params)
+
+    def create_page(self, page_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new page.
+
+        Args:
+            page_data: Page data
+
+        Returns:
+            Created page response data
+        """
+        return self._make_request(
+            "POST",
+            "/ghost/api/admin/pages/",
+            json={"pages": [page_data]},
+        )
+
+    def update_page(self, page_id: str, page_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update an existing page.
+
+        Args:
+            page_id: Page ID
+            page_data: Updated page data
+
+        Returns:
+            Updated page response data
+        """
+        # First, get the current page to obtain the updated_at field for collision detection
+        current_page_response = self._make_request("GET", f"/ghost/api/admin/pages/{page_id}/")
+        current_page = current_page_response.get("pages", [{}])[0]
+
+        # Include the updated_at field from current page for collision detection
+        update_data = page_data.copy()
+        if "updated_at" not in update_data and "updated_at" in current_page:
+            update_data["updated_at"] = current_page["updated_at"]
+
+        return self._make_request(
+            "PUT",
+            f"/ghost/api/admin/pages/{page_id}/",
+            json={"pages": [update_data]},
+        )
+
+    def delete_page(self, page_id: str) -> bool:
+        """Delete a page.
+
+        Args:
+            page_id: Page ID
+
+        Returns:
+            True if deletion was successful
+        """
+        try:
+            self._make_request("DELETE", f"/ghost/api/admin/pages/{page_id}/")
+            return True
+        except (NotFoundError, MaxRetriesExceededError) as e:
+            # If it's a 404, the page was already deleted or doesn't exist
+            if isinstance(e, NotFoundError):
+                return False
+            # For MaxRetriesExceededError, check if the underlying cause is 404
+            if isinstance(e, MaxRetriesExceededError):
+                if hasattr(e, '__cause__') and isinstance(e.__cause__, NotFoundError):
+                    return False
+                if "404" in str(e) or "not found" in str(e).lower():
+                    return False
+                # Re-raise other types of MaxRetriesExceededError
+                raise
+            raise
 
     # Tags API methods
     def get_all_tags(
@@ -563,6 +731,7 @@ class GhostClient:
         page: int = 1,
         filter_query: Optional[str] = None,
         include: Optional[List[str]] = None,
+        order: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get tags from Ghost CMS.
 
@@ -571,6 +740,7 @@ class GhostClient:
             page: Page number
             filter_query: Filter query string
             include: Related data to include
+            order: Order by clause (e.g., "created_at ASC")
 
         Returns:
             Tags response data
@@ -581,6 +751,8 @@ class GhostClient:
             params["filter"] = filter_query
         if include:
             params["include"] = ",".join(include)
+        if order:
+            params["order"] = order
 
         return self._make_request("GET", "/ghost/api/admin/tags/", params=params)
 
@@ -625,10 +797,19 @@ class GhostClient:
         Returns:
             Updated tag response data
         """
+        # First, get the current tag to obtain the updated_at field for collision detection
+        current_tag_response = self._make_request("GET", f"/ghost/api/admin/tags/{tag_id}/")
+        current_tag = current_tag_response.get("tags", [{}])[0]
+
+        # Include the updated_at field from current tag for collision detection
+        update_data = tag_data.copy()
+        if "updated_at" not in update_data and "updated_at" in current_tag:
+            update_data["updated_at"] = current_tag["updated_at"]
+
         return self._make_request(
             "PUT",
             f"/ghost/api/admin/tags/{tag_id}/",
-            json={"tags": [tag_data]},
+            json={"tags": [update_data]},
         )
 
     def delete_tag(self, tag_id: str) -> bool:
@@ -641,7 +822,8 @@ class GhostClient:
             True if deletion was successful
         """
         try:
-            self._make_request("DELETE", f"/ghost/api/admin/tags/{tag_id}/")
+            result = self._make_request("DELETE", f"/ghost/api/admin/tags/{tag_id}/")
+            # DELETE operations return empty dict for 204 status code
             return True
         except NotFoundError:
             return False
@@ -662,6 +844,152 @@ class GhostClient:
             Site configuration data
         """
         return self._make_request("GET", "/ghost/api/admin/config/")
+
+    def get_settings(self) -> Dict[str, Any]:
+        """Get site settings.
+
+        Returns:
+            Site settings data
+        """
+        response = self._make_request("GET", "/ghost/api/admin/settings/")
+        # Settings API returns a list of settings objects, convert to dict
+        if "settings" in response:
+            settings_dict = {}
+            for setting in response["settings"]:
+                settings_dict[setting.get("key", setting.get("name", "unknown"))] = setting.get("value")
+            return settings_dict
+        return response
+
+    def update_settings(self, settings: Dict[str, Any]) -> Dict[str, Any]:
+        """Update site settings.
+
+        Args:
+            settings: Dictionary of settings to update
+
+        Returns:
+            Updated settings data
+        """
+        # Convert dict to settings format expected by API
+        settings_list = []
+        for key, value in settings.items():
+            settings_list.append({"key": key, "value": value})
+
+        data = {"settings": settings_list}
+        return self._make_request("PUT", "/ghost/api/admin/settings/", json=data)
+
+    # Members methods
+    def get_members(
+        self,
+        limit: int = 15,
+        page: int = 1,
+        filter: Optional[str] = None,
+        include: Optional[str] = None,
+        order: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get members from Ghost CMS.
+
+        Args:
+            limit: Number of members to retrieve
+            page: Page number
+            filter: Filter query string
+            include: Related data to include (comma-separated string or None)
+            order: Sort order
+
+        Returns:
+            Members response data
+        """
+        params = {"limit": limit, "page": page}
+
+        if filter:
+            params["filter"] = filter
+        if include:
+            params["include"] = include
+        if order:
+            params["order"] = order
+
+        return self._make_request("GET", "/ghost/api/admin/members/", params=params)
+
+    def get_member(self, member_id: str, include: Optional[str] = None) -> Dict[str, Any]:
+        """Get a specific member by ID.
+
+        Args:
+            member_id: Member ID
+            include: Related data to include (comma-separated string)
+
+        Returns:
+            Member response data
+        """
+        params = {}
+        if include:
+            params["include"] = include
+
+        return self._make_request("GET", f"/ghost/api/admin/members/{member_id}/", params=params)
+
+    def create_member(self, member_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new member.
+
+        Args:
+            member_data: Member data
+
+        Returns:
+            Created member response data
+        """
+        return self._make_request(
+            "POST",
+            "/ghost/api/admin/members/",
+            json={"members": [member_data]},
+        )
+
+    def update_member(self, member_id: str, member_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update an existing member.
+
+        Args:
+            member_id: Member ID
+            member_data: Updated member data
+
+        Returns:
+            Updated member response data
+        """
+        # First, get the current member to obtain the updated_at field for collision detection
+        current_member_response = self._make_request("GET", f"/ghost/api/admin/members/{member_id}/")
+        current_member = current_member_response.get("members", [{}])[0]
+
+        # Include the updated_at field from current member for collision detection
+        update_data = member_data.copy()
+        if "updated_at" not in update_data and "updated_at" in current_member:
+            update_data["updated_at"] = current_member["updated_at"]
+
+        return self._make_request(
+            "PUT",
+            f"/ghost/api/admin/members/{member_id}/",
+            json={"members": [update_data]},
+        )
+
+    def delete_member(self, member_id: str) -> bool:
+        """Delete a member.
+
+        Args:
+            member_id: Member ID
+
+        Returns:
+            True if deletion was successful
+        """
+        try:
+            self._make_request("DELETE", f"/ghost/api/admin/members/{member_id}/")
+            return True
+        except (NotFoundError, MaxRetriesExceededError) as e:
+            # If it's a 404, the member was already deleted or doesn't exist
+            if isinstance(e, NotFoundError):
+                return False
+            # For MaxRetriesExceededError, check if the underlying cause is 404
+            if isinstance(e, MaxRetriesExceededError):
+                if hasattr(e, '__cause__') and isinstance(e.__cause__, NotFoundError):
+                    return False
+                if "404" in str(e) or "not found" in str(e).lower():
+                    return False
+                # Re-raise other types of MaxRetriesExceededError
+                raise
+            raise
 
     # User methods
     def get_users(
@@ -696,19 +1024,22 @@ class GhostClient:
         return self._make_request("GET", "/ghost/api/admin/users/me/")
 
     # Image upload methods
-    def upload_image(self, image_path: str, purpose: str = "image") -> Dict[str, Any]:
+    def upload_image(self, file_path: str, purpose: str = "image", ref: Optional[str] = None) -> Dict[str, Any]:
         """Upload an image to Ghost CMS.
 
         Args:
-            image_path: Path to image file
+            file_path: Path to image file
             purpose: Purpose of the image (image, profile_image, cover_image)
+            ref: Reference identifier for the upload
 
         Returns:
             Upload response data
         """
-        with open(image_path, "rb") as f:
+        with open(file_path, "rb") as f:
             files = {"file": f}
             data = {"purpose": purpose}
+            if ref:
+                data["ref"] = ref
 
             return self._make_request(
                 "POST",

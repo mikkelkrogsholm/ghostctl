@@ -1,0 +1,301 @@
+openapi: 3.0.0
+info:
+  title: Ghost Posts API Contract
+  version: 1.0.0
+  description: API contract for Ghost posts management
+
+paths:
+  /posts:
+    get:
+      summary: List all posts
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 15
+            maximum: 100
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: filter
+          in: query
+          schema:
+            type: string
+          description: NQL filter
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: "published_at desc"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+    post:
+      summary: Create a new post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                posts:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PostInput'
+      responses:
+        '201':
+          description: Post created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+
+  /posts/{id}:
+    get:
+      summary: Get a single post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update a post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                posts:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PostInput'
+      responses:
+        '200':
+          description: Post updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+
+    delete:
+      summary: Delete a post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Post deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    Post:
+      type: object
+      required:
+        - id
+        - title
+        - slug
+        - status
+      properties:
+        id:
+          type: string
+        uuid:
+          type: string
+        title:
+          type: string
+        slug:
+          type: string
+        html:
+          type: string
+        mobiledoc:
+          type: string
+        lexical:
+          type: string
+        feature_image:
+          type: string
+          nullable: true
+        featured:
+          type: boolean
+        status:
+          type: string
+          enum: [draft, published, scheduled]
+        visibility:
+          type: string
+          enum: [public, members, paid, tiers]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        custom_excerpt:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        authors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Author'
+
+    PostInput:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+        slug:
+          type: string
+        html:
+          type: string
+        mobiledoc:
+          type: string
+        lexical:
+          type: string
+        feature_image:
+          type: string
+        featured:
+          type: boolean
+        status:
+          type: string
+          enum: [draft, published, scheduled]
+        visibility:
+          type: string
+          enum: [public, members, paid, tiers]
+        published_at:
+          type: string
+          format: date-time
+        custom_excerpt:
+          type: string
+        tags:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+
+    Tag:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+
+    Author:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+
+    PaginationMeta:
+      type: object
+      properties:
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            pages:
+              type: integer
+            total:
+              type: integer
+            next:
+              type: integer
+              nullable: true
+            prev:
+              type: integer
+              nullable: true
+
+    Error:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              message:
+                type: string
+              context:
+                type: string
+              type:
+                type: string
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

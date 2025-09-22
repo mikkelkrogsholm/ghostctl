@@ -44,37 +44,37 @@
 
 ## Phase 3.1: Setup
 - [ ] T001 Create project structure per implementation plan
-- [ ] T002 Initialize [language] project with [framework] dependencies
-- [ ] T003 [P] Configure linting and formatting tools
+- [ ] T002 Initialize Python 3.11+ project with typed dependencies
+- [ ] T003 [P] Configure mypy (strict), black, isort, ruff, bandit
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
-- [ ] T004 [P] Contract test POST /api/users in tests/contract/test_users_post.py
-- [ ] T005 [P] Contract test GET /api/users/{id} in tests/contract/test_users_get.py
-- [ ] T006 [P] Integration test user registration in tests/integration/test_registration.py
-- [ ] T007 [P] Integration test auth flow in tests/integration/test_auth.py
+- [ ] T004 [P] Contract test for Ghost API endpoint in tests/contract/test_[endpoint].py
+- [ ] T005 [P] Mock test for API error handling (rate limits, network failures)
+- [ ] T006 [P] Integration test for idempotent operations
+- [ ] T007 [P] Security test for credential handling (no leaks in logs/errors)
 
 ## Phase 3.3: Core Implementation (ONLY after tests are failing)
-- [ ] T008 [P] User model in src/models/user.py
-- [ ] T009 [P] UserService CRUD in src/services/user_service.py
-- [ ] T010 [P] CLI --create-user in src/cli/user_commands.py
-- [ ] T011 POST /api/users endpoint
-- [ ] T012 GET /api/users/{id} endpoint
-- [ ] T013 Input validation
-- [ ] T014 Error handling and logging
+- [ ] T008 [P] Typed data models with Pydantic/dataclasses in src/models/
+- [ ] T009 [P] Service layer with dependency injection in src/services/
+- [ ] T010 [P] CLI commands with --help and examples in src/cli/
+- [ ] T011 Idempotent bulk operations handler
+- [ ] T012 Secure credential manager (keychain integration)
+- [ ] T013 Input validation with type checking
+- [ ] T014 Structured error handling with recovery paths
 
 ## Phase 3.4: Integration
-- [ ] T015 Connect UserService to DB
-- [ ] T016 Auth middleware
-- [ ] T017 Request/response logging
-- [ ] T018 CORS and security headers
+- [ ] T015 Ghost Admin API client with retry logic
+- [ ] T016 Circuit breaker for API calls
+- [ ] T017 Structured logging with correlation IDs
+- [ ] T018 Progress indicators for bulk operations
 
 ## Phase 3.5: Polish
-- [ ] T019 [P] Unit tests for validation in tests/unit/test_validation.py
-- [ ] T020 Performance tests (<200ms)
-- [ ] T021 [P] Update docs/api.md
-- [ ] T022 Remove duplication
-- [ ] T023 Run manual-testing.md
+- [ ] T019 [P] Unit tests achieving 80%+ coverage
+- [ ] T020 Performance benchmarks for bulk operations
+- [ ] T021 [P] Command documentation with 3+ examples each
+- [ ] T022 CI pipeline optimization (<5 min runs)
+- [ ] T023 Security audit with bandit
 
 ## Dependencies
 - Tests (T004-T007) before implementation (T008-T014)

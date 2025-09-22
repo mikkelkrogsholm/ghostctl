@@ -1,8 +1,8 @@
 
-# Implementation Plan: [FEATURE]
+# Implementation Plan: Ghost CMS Management CLI (ghostctl)
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
+**Branch**: `001-build-a-cli` | **Date**: 2025-09-22 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/001-build-a-cli/spec.md`
 
 ## Execution Flow (/plan command scope)
 ```
@@ -31,31 +31,31 @@
 - Phase 3-4: Implementation execution (manual or via tools)
 
 ## Summary
-[Extract from feature spec: primary requirement + technical approach from research]
+Building a production-quality command-line interface tool called `ghostctl` to fully manage Ghost CMS blogs via the Admin API. The CLI will support all major Ghost resources (posts, pages, tags, members, themes, etc.) with comprehensive CRUD operations, bulk import/export capabilities, multiple configuration profiles, flexible output formats (table/JSON/YAML), and enterprise features like dry-run mode and idempotent operations. The implementation will use Python 3.11+ with Typer for CLI framework, Requests for HTTP, PyJWT for authentication, Pydantic for validation, and Rich for formatted output.
 
 ## Technical Context
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [single/web/mobile - determines source structure]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Language/Version**: Python 3.11+
+**Primary Dependencies**: Typer (CLI), Requests (HTTP), PyJWT (Auth), Pydantic (Models), Rich (Tables), tomllib (Config), PyYAML (Output)
+**Storage**: TOML configuration file (~/.ghostctl.toml) for profiles
+**Testing**: pytest with pytest-mock for unit tests, pytest-integration for API tests
+**Target Platform**: Cross-platform CLI (Linux, macOS, Windows)
+**Project Type**: single (CLI application)
+**Performance Goals**: <500ms for single operations, <10s for bulk operations of 100 items
+**Constraints**: Respect Ghost API rate limits (100 requests per minute), secure credential storage
+**Scale/Scope**: Handle blogs with 10k+ posts/members, support 11 resource types, 45+ functional requirements
 
 ## Constitution Check
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 ### Core Principle Compliance
-- [ ] **Reliability**: All operations idempotent, fault-tolerant with recovery paths
-- [ ] **CLI UX**: Clear feedback, progress indicators, actionable errors, --help with examples
-- [ ] **Type Safety**: Python 3.11+ with comprehensive type hints, mypy strict mode
-- [ ] **API Testing**: Exhaustive tests for all Ghost API interactions (mocks + integration)
-- [ ] **Security**: API keys secure, platform-appropriate credential storage documented
-- [ ] **Zero Magic**: All behaviors explicit, no hidden side effects, --debug transparency
-- [ ] **Documentation**: 3+ examples per command (basic, advanced, error recovery)
-- [ ] **Fast CI**: <5 min pipeline, parallel tests, caching, affected-only test runs
+- [x] **Reliability**: All operations idempotent, fault-tolerant with recovery paths
+- [x] **CLI UX**: Clear feedback, progress indicators, actionable errors, --help with examples
+- [x] **Type Safety**: Python 3.11+ with comprehensive type hints, mypy strict mode
+- [x] **API Testing**: Exhaustive tests for all Ghost API interactions (mocks + integration)
+- [x] **Security**: API keys secure, platform-appropriate credential storage documented
+- [x] **Zero Magic**: All behaviors explicit, no hidden side effects, --debug transparency
+- [x] **Documentation**: 3+ examples per command (basic, advanced, error recovery)
+- [x] **Fast CI**: <5 min pipeline, parallel tests, caching, affected-only test runs
 
 ## Project Structure
 
@@ -72,42 +72,51 @@ specs/[###-feature]/
 
 ### Source Code (repository root)
 ```
-# Option 1: Single project (DEFAULT)
-src/
+ghostctl/
+├── __init__.py
+├── app.py              # Typer app assembly
+├── config.py           # Profile management
+├── client.py           # JWT auth + HTTP client + retries
+├── render.py           # Output formatting (table/json/yaml)
 ├── models/
-├── services/
-├── cli/
-└── lib/
+│   ├── __init__.py
+│   ├── post.py        # Pydantic models for posts/pages
+│   ├── member.py      # Pydantic models for members
+│   ├── tag.py         # Pydantic models for tags
+│   └── ...            # Other resource models
+├── cmds/
+│   ├── __init__.py
+│   ├── posts.py       # Post/Page commands
+│   ├── tags.py        # Tag commands
+│   ├── members.py     # Member commands
+│   ├── newsletters.py # Newsletter commands
+│   ├── tiers.py       # Tier commands
+│   ├── offers.py      # Offer commands
+│   ├── webhooks.py    # Webhook commands
+│   ├── images.py      # Image upload commands
+│   ├── themes.py      # Theme management commands
+│   ├── settings.py    # Settings commands
+│   └── export.py      # Export/Import commands
+└── utils/
+    ├── __init__.py
+    ├── auth.py        # JWT generation
+    └── retry.py       # Retry logic with backoff
 
 tests/
-├── contract/
+├── unit/
 ├── integration/
-└── unit/
+└── fixtures/
 
-# Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure]
+# Additional project files
+pyproject.toml          # Python project configuration
+Dockerfile              # Slim runtime container
+docker-compose.yml      # Example with Ghost + ghostctl
+.github/
+└── workflows/
+    └── ci.yml          # GitHub Actions for lint+test
 ```
 
-**Structure Decision**: [DEFAULT to Option 1 unless Technical Context indicates web/mobile app]
+**Structure Decision**: Custom structure based on user requirements - CLI-focused with command modules
 
 ## Phase 0: Outline & Research
 1. **Extract unknowns from Technical Context** above:
@@ -169,17 +178,29 @@ ios/ or android/
 **Task Generation Strategy**:
 - Load `.specify/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs (contracts, data model, quickstart)
-- Each contract → contract test task [P]
-- Each entity → model creation task [P] 
-- Each user story → integration test task
-- Implementation tasks to make tests pass
+- Focus on priority resources first: posts, images, themes, tags
+- Each API contract → contract test tasks [P]
+- Each entity model → Pydantic model creation task [P]
+- Each command group → CLI command implementation tasks
+- Integration tests for critical user journeys
+
+**Task Categories**:
+1. **Setup** (3-4 tasks): Project init, dependencies, linting config
+2. **Core Infrastructure** (5-6 tasks): Client, auth, config, render modules
+3. **Contract Tests** (8-10 tasks): Test files for each API endpoint [P]
+4. **Models** (8-10 tasks): Pydantic models for resources [P]
+5. **Commands** (15-20 tasks): CLI commands for priority resources
+6. **Integration** (5-6 tasks): End-to-end tests, Docker, CI/CD
+7. **Polish** (3-4 tasks): Documentation, performance tests, security audit
 
 **Ordering Strategy**:
-- TDD order: Tests before implementation 
-- Dependency order: Models before services before UI
+- TDD order: Write failing tests before implementation
+- Infrastructure before features: client.py before commands
+- Models before commands that use them
+- Priority resources first (posts, images, themes, tags)
 - Mark [P] for parallel execution (independent files)
 
-**Estimated Output**: 25-30 numbered, ordered tasks in tasks.md
+**Estimated Output**: 50-60 numbered, ordered tasks in tasks.md covering priority features
 
 **IMPORTANT**: This phase is executed by the /tasks command, NOT by /plan
 
@@ -203,18 +224,18 @@ ios/ or android/
 *This checklist is updated during execution flow*
 
 **Phase Status**:
-- [ ] Phase 0: Research complete (/plan command)
-- [ ] Phase 1: Design complete (/plan command)
-- [ ] Phase 2: Task planning complete (/plan command - describe approach only)
+- [x] Phase 0: Research complete (/plan command)
+- [x] Phase 1: Design complete (/plan command)
+- [x] Phase 2: Task planning complete (/plan command - describe approach only)
 - [ ] Phase 3: Tasks generated (/tasks command)
 - [ ] Phase 4: Implementation complete
 - [ ] Phase 5: Validation passed
 
 **Gate Status**:
-- [ ] Initial Constitution Check: PASS
-- [ ] Post-Design Constitution Check: PASS
-- [ ] All NEEDS CLARIFICATION resolved
-- [ ] Complexity deviations documented
+- [x] Initial Constitution Check: PASS
+- [x] Post-Design Constitution Check: PASS
+- [x] All NEEDS CLARIFICATION resolved
+- [x] Complexity deviations documented (none required)
 
 ---
 *Based on Constitution v1.0.0 - See `.specify/memory/constitution.md`*

@@ -1,0 +1,97 @@
+openapi: 3.0.0
+info:
+  title: Ghost Images API Contract
+  version: 1.0.0
+  description: API contract for Ghost image upload
+
+paths:
+  /images/upload:
+    post:
+      summary: Upload an image
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file (JPEG, PNG, GIF, SVG, ICO)
+                purpose:
+                  type: string
+                  enum: [image, profile_image, icon]
+                  default: image
+                ref:
+                  type: string
+                  description: Optional reference for tracking
+      responses:
+        '201':
+          description: Image uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  images:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Image'
+        '400':
+          description: Bad request - invalid file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '415':
+          description: Unsupported media type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Image:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Public URL of the uploaded image
+        ref:
+          type: string
+          nullable: true
+          description: Reference identifier if provided
+        width:
+          type: integer
+          description: Image width in pixels
+        height:
+          type: integer
+          description: Image height in pixels
+
+    Error:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              message:
+                type: string
+              context:
+                type: string
+              type:
+                type: string

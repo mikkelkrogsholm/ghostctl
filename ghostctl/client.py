@@ -245,6 +245,7 @@ class GhostClient:
         method: str,
         endpoint: str,
         use_admin_api: bool = True,
+        timeout_override: Optional[int] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Make an API request with retry logic and error handling.
@@ -253,6 +254,7 @@ class GhostClient:
             method: HTTP method
             endpoint: API endpoint
             use_admin_api: Whether to use Admin API authentication
+            timeout_override: Optional timeout override in seconds
             **kwargs: Additional request parameters
 
         Returns:
@@ -271,7 +273,7 @@ class GhostClient:
             response = self.session.request(
                 method=method,
                 url=f"{self.url}{endpoint}",
-                timeout=self.timeout,
+                timeout=timeout_override if timeout_override else self.timeout,
                 **kwargs,
             )
 
@@ -285,6 +287,13 @@ class GhostClient:
             if self.debug:
                 print(f"[DEBUG] Making authenticated {method} request to {endpoint}")
                 print(f"[DEBUG] Using admin API: {use_admin_api}")
+                if timeout_override:
+                    print(f"[DEBUG] Using timeout override: {timeout_override}s")
+
+            # Pass timeout through kwargs if override is specified
+            request_kwargs = kwargs.copy()
+            if timeout_override:
+                request_kwargs['timeout'] = timeout_override
 
             return self.auth.authenticated_request(
                 method=method,
@@ -292,7 +301,7 @@ class GhostClient:
                 use_admin_api=use_admin_api,
                 session=self.session,
                 debug=self.debug,
-                **kwargs,
+                **request_kwargs,
             )
 
         # Use circuit breaker for admin API requests
@@ -1073,21 +1082,8 @@ class GhostClient:
             )
 
     # Theme methods
-    def get_themes(self) -> Dict[str, Any]:
-        """Get installed themes.
-
-        Returns:
-            Themes response data
-        """
-        return self._make_request("GET", "/ghost/api/admin/themes/")
-
-    def get_active_theme(self) -> Dict[str, Any]:
-        """Get active theme information.
-
-        Returns:
-            Active theme data
-        """
-        return self._make_request("GET", "/ghost/api/admin/themes/?filter=active:true")
+    # Note: Ghost API v5 does not support listing themes (returns 501)
+    # Only upload and activation endpoints are functional
 
     def upload_theme(self, theme_path: str) -> Dict[str, Any]:
         """Upload a theme to Ghost CMS.
@@ -1097,14 +1093,22 @@ class GhostClient:
 
         Returns:
             Upload response data
-        """
-        with open(theme_path, "rb") as f:
-            files = {"file": f}
 
+        Note: Theme uploads may take longer than regular API calls.
+        Consider using a longer timeout (60+ seconds) for this operation.
+        """
+        import os
+        filename = os.path.basename(theme_path)
+
+        with open(theme_path, "rb") as f:
+            files = {"file": (filename, f, "application/zip")}
+
+            # Theme uploads need longer timeout
             return self._make_request(
                 "POST",
                 "/ghost/api/admin/themes/upload/",
                 files=files,
+                timeout_override=60,  # 60 second timeout for theme uploads
             )
 
     def activate_theme(self, theme_name: str) -> Dict[str, Any]:

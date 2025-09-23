@@ -1,13 +1,14 @@
 """Theme management commands for GhostCtl CLI.
 
 This module provides commands for managing Ghost CMS themes including
-listing, uploading, activating, and rolling back themes.
+uploading and activating themes.
+
+Note: Ghost API v5 does not support listing themes via API (returns 501).
+Theme management must be done through upload and activation endpoints only.
 """
 
 from pathlib import Path
-from typing import Optional
 import zipfile
-import tempfile
 
 import typer
 from rich.console import Console
@@ -29,10 +30,14 @@ def get_client_and_formatter(ctx: typer.Context) -> tuple[GhostClient, OutputFor
         console.print("[red]No profile configured. Run 'ghostctl config init' first.[/red]")
         raise typer.Exit(1)
 
+    # Use a longer timeout for theme operations (60 seconds instead of default)
+    # and disable retries since theme operations are not idempotent
+    timeout = max(ctx.obj["timeout"], 60)
+
     client = GhostClient(
         profile=profile,
-        timeout=ctx.obj["timeout"],
-        retry_attempts=ctx.obj["max_retries"],
+        timeout=timeout,
+        retry_attempts=0,  # Disable retries for theme operations
     )
     formatter = ctx.obj["output_formatter"]
     return client, formatter
@@ -57,19 +62,27 @@ def validate_theme_file(file_path: Path) -> None:
 
             # Look for package.json (required for Ghost themes)
             has_package_json = any(
-                name.endswith('package.json') for name in file_list
+                name.endswith('package.json') and '/' not in name[:-12]
+                for name in file_list
             )
 
             # Look for index.hbs (required template)
             has_index_hbs = any(
-                name.endswith('index.hbs') for name in file_list
+                name.endswith('index.hbs') and '/' not in name[:-9]
+                for name in file_list
             )
 
             if not has_package_json:
-                raise GhostCtlError("Theme package must contain package.json")
+                raise GhostCtlError(
+                    "Theme package must contain package.json in root directory. "
+                    "If downloaded from GitHub, extract and rezip without the top-level folder."
+                )
 
             if not has_index_hbs:
-                raise GhostCtlError("Theme package must contain index.hbs template")
+                raise GhostCtlError(
+                    "Theme package must contain index.hbs template in root directory. "
+                    "If downloaded from GitHub, extract and rezip without the top-level folder."
+                )
 
     except zipfile.BadZipFile:
         raise GhostCtlError("Invalid ZIP file")
@@ -79,59 +92,6 @@ def validate_theme_file(file_path: Path) -> None:
     if file_path.stat().st_size > max_size:
         size_mb = file_path.stat().st_size / (1024 * 1024)
         raise GhostCtlError(f"Theme file too large: {size_mb:.1f}MB (max 50MB)")
-
-
-@app.command()
-def list(
-    ctx: typer.Context,
-) -> None:
-    """List all available themes.
-
-    Examples:
-        # List all themes
-        ghostctl themes list
-
-        # List themes in JSON format
-        ghostctl themes list --output json
-    """
-    client, formatter = get_client_and_formatter(ctx)
-
-    if ctx.obj["dry_run"]:
-        console.print("[yellow]DRY RUN: Would list all themes[/yellow]")
-        return
-
-    try:
-        themes = client.get_themes()
-
-        if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.render({"themes": themes}, format_override=ctx.obj["output_format"])
-        else:
-            # Table format
-            table = Table(title="Themes")
-            table.add_column("Name", style="bold")
-            table.add_column("Version", style="cyan")
-            table.add_column("Active", style="green")
-            table.add_column("Templates", style="blue", justify="right")
-            table.add_column("Package", style="dim")
-
-            for theme in themes:
-                is_active = "✓" if theme.get("active", False) else "—"
-                templates = len(theme.get("templates", []))
-                package_version = theme.get("package", {}).get("version", "—")
-
-                table.add_row(
-                    theme.get("name", "Unknown"),
-                    package_version,
-                    is_active,
-                    str(templates) if templates > 0 else "—",
-                    theme.get("package", {}).get("name", "—"),
-                )
-
-            console.print(table)
-
-    except GhostCtlError as e:
-        console.print(f"[red]Error listing themes: {e}[/red]")
-        raise typer.Exit(1)
 
 
 @app.command()
@@ -149,8 +109,11 @@ def upload(
         # Upload and activate immediately
         ghostctl themes upload my-theme.zip --activate
 
-        # Upload with validation
+        # Validate before uploading
         ghostctl themes validate my-theme.zip && ghostctl themes upload my-theme.zip
+
+    Note: Theme files must have package.json and index.hbs in the root of the ZIP.
+    If downloading from GitHub, extract and rezip without the top-level folder.
     """
     client, formatter = get_client_and_formatter(ctx)
 
@@ -174,7 +137,14 @@ def upload(
             progress.add_task(f"Uploading {theme_file.name}...", total=None)
 
             # Upload the theme
-            result = client.upload_theme(theme_file, activate=activate)
+            result = client.upload_theme(str(theme_file))
+
+            # If activate flag is set, activate the theme
+            if activate and result:
+                theme_data = result.get("themes", [{}])[0] if result.get("themes") else result
+                theme_name = theme_data.get("name")
+                if theme_name:
+                    client.activate_theme(theme_name)
 
         if activate:
             console.print(f"[green]Theme uploaded and activated successfully![/green]")
@@ -207,15 +177,15 @@ def upload(
 @app.command()
 def activate(
     ctx: typer.Context,
-    theme_name: str = typer.Argument(..., help="Name of theme to activate"),
+    theme_name: str = typer.Argument(..., help="Name of the theme to activate"),
 ) -> None:
-    """Activate an uploaded theme.
+    """Activate an installed theme.
 
     Examples:
-        # Activate a theme by name
+        # Activate a theme
         ghostctl themes activate casper
 
-        # Activate a custom theme
+        # Activate with confirmation
         ghostctl themes activate my-custom-theme
     """
     client, formatter = get_client_and_formatter(ctx)
@@ -225,20 +195,30 @@ def activate(
         return
 
     try:
-        result = client.activate_theme(theme_name)
+        # Show progress during activation
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task(f"Activating theme '{theme_name}'...", total=None)
+
+            result = client.activate_theme(theme_name)
+
         console.print(f"[green]Theme '{theme_name}' activated successfully![/green]")
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
             formatter.render({"themes": [result]}, format_override=ctx.obj["output_format"])
         else:
-            # Show activated theme info
-            theme_data = result.get("themes", [{}])[0] if result.get("themes") else result
-
+            # Table format
             table = Table(title="Activated Theme")
             table.add_column("Property", style="cyan")
             table.add_column("Value", style="bold")
 
-            table.add_row("Name", theme_data.get("name", "Unknown"))
+            theme_data = result.get("themes", [{}])[0] if result.get("themes") else result
+
+            table.add_row("Name", theme_data.get("name", theme_name))
             table.add_row("Version", theme_data.get("package", {}).get("version", "Unknown"))
             table.add_row("Active", "✓ Yes")
             table.add_row("Templates", str(len(theme_data.get("templates", []))))
@@ -251,306 +231,89 @@ def activate(
 
 
 @app.command()
-def delete(
-    ctx: typer.Context,
-    theme_name: str = typer.Argument(..., help="Name of theme to delete"),
-    force: bool = typer.Option(False, "--force", help="Delete without confirmation"),
-) -> None:
-    """Delete an uploaded theme.
-
-    Note: You cannot delete the currently active theme.
-
-    Examples:
-        # Delete with confirmation
-        ghostctl themes delete old-theme
-
-        # Force delete without confirmation
-        ghostctl themes delete old-theme --force
-    """
-    client, formatter = get_client_and_formatter(ctx)
-
-    if ctx.obj["dry_run"]:
-        console.print(f"[yellow]DRY RUN: Would delete theme '{theme_name}'[/yellow]")
-        return
-
-    try:
-        # Check if theme exists and is not active
-        themes = client.get_themes()
-        theme_to_delete = None
-        active_theme = None
-
-        for theme in themes:
-            if theme.get("name") == theme_name:
-                theme_to_delete = theme
-            if theme.get("active", False):
-                active_theme = theme.get("name")
-
-        if not theme_to_delete:
-            console.print(f"[red]Theme '{theme_name}' not found[/red]")
-            raise typer.Exit(1)
-
-        if theme_to_delete.get("active", False):
-            console.print(f"[red]Cannot delete active theme '{theme_name}'. Activate another theme first.[/red]")
-            raise typer.Exit(1)
-
-        # Confirmation
-        if not force:
-            console.print(f"[yellow]About to delete theme:[/yellow]")
-            console.print(f"  Name: {theme_name}")
-            console.print(f"  Version: {theme_to_delete.get('package', {}).get('version', 'Unknown')}")
-            console.print(f"  Currently active: {active_theme}")
-
-            confirm = typer.confirm(f"Are you sure you want to delete theme '{theme_name}'?")
-            if not confirm:
-                console.print("[yellow]Delete cancelled[/yellow]")
-                return
-
-        client.delete_theme(theme_name)
-        console.print(f"[green]Theme '{theme_name}' deleted successfully![/green]")
-
-    except GhostCtlError as e:
-        console.print(f"[red]Error deleting theme: {e}[/red]")
-        raise typer.Exit(1)
-
-
-@app.command()
-def download(
-    ctx: typer.Context,
-    theme_name: str = typer.Argument(..., help="Name of theme to download"),
-    output_file: Optional[Path] = typer.Option(None, "--output", help="Output file path (default: theme-name.zip)"),
-) -> None:
-    """Download an active theme as a ZIP file.
-
-    Examples:
-        # Download current active theme
-        ghostctl themes download casper
-
-        # Download to specific location
-        ghostctl themes download my-theme --output ./backups/my-theme-backup.zip
-    """
-    client, formatter = get_client_and_formatter(ctx)
-
-    # Set default output file name
-    if output_file is None:
-        output_file = Path(f"{theme_name}.zip")
-
-    if ctx.obj["dry_run"]:
-        console.print(f"[yellow]DRY RUN: Would download theme '{theme_name}' to '{output_file}'[/yellow]")
-        return
-
-    try:
-        # Show progress during download
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-            transient=True,
-        ) as progress:
-            progress.add_task(f"Downloading {theme_name}...", total=None)
-
-            # Download the theme
-            client.download_theme(theme_name, output_file)
-
-        console.print(f"[green]Theme downloaded successfully to '{output_file}'![/green]")
-
-        if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.render({
-                "theme": theme_name,
-                "output_file": str(output_file),
-                "file_size": output_file.stat().st_size,
-            }, format_override=ctx.obj["output_format"])
-        else:
-            # Table format
-            table = Table(title="Downloaded Theme")
-            table.add_column("Property", style="cyan")
-            table.add_column("Value", style="bold")
-
-            table.add_row("Theme", theme_name)
-            table.add_row("Output File", str(output_file))
-            table.add_row("File Size", f"{output_file.stat().st_size:,} bytes")
-
-            console.print(table)
-
-    except GhostCtlError as e:
-        console.print(f"[red]Error downloading theme: {e}[/red]")
-        raise typer.Exit(1)
-
-
-@app.command()
 def validate(
     ctx: typer.Context,
     theme_file: Path = typer.Argument(..., help="Path to theme ZIP file to validate"),
 ) -> None:
     """Validate a theme package before uploading.
 
+    Checks that the ZIP file contains required Ghost theme files:
+    - package.json in root directory
+    - index.hbs template in root directory
+    - Valid ZIP structure
+    - File size under 50MB
+
     Examples:
-        # Validate a theme file
+        # Validate a theme
         ghostctl themes validate my-theme.zip
 
-        # Validate before uploading
+        # Validate and upload if successful
         ghostctl themes validate theme.zip && ghostctl themes upload theme.zip
     """
-    if ctx.obj["dry_run"]:
-        console.print(f"[yellow]DRY RUN: Would validate theme '{theme_file}'[/yellow]")
-        return
-
     try:
         validate_theme_file(theme_file)
 
-        # Extract additional information from the theme
-        theme_info = {}
+        # Additional validation info
         with zipfile.ZipFile(theme_file, 'r') as zip_file:
             file_list = zip_file.namelist()
 
-            # Try to read package.json
-            package_json_files = [f for f in file_list if f.endswith('package.json')]
-            if package_json_files:
-                try:
-                    import json
-                    with zip_file.open(package_json_files[0]) as package_file:
-                        package_data = json.load(package_file)
-                        theme_info.update({
-                            "name": package_data.get("name", "Unknown"),
-                            "version": package_data.get("version", "Unknown"),
-                            "description": package_data.get("description", ""),
-                            "author": package_data.get("author", {}).get("name") if isinstance(package_data.get("author"), dict) else package_data.get("author", "Unknown"),
-                        })
-                except (json.JSONDecodeError, KeyError):
-                    pass
-
             # Count templates
-            hbs_files = [f for f in file_list if f.endswith('.hbs')]
-            theme_info["templates"] = len(hbs_files)
-            theme_info["files"] = len(file_list)
+            templates = [f for f in file_list if f.endswith('.hbs')]
 
-        console.print(f"[green]✓ Theme is valid for upload[/green]")
+            # Check for package.json
+            package_files = [f for f in file_list if f.endswith('package.json')]
 
-        if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.render({
-                "valid": True,
-                "file": str(theme_file),
-                "size_bytes": theme_file.stat().st_size,
-                "theme_info": theme_info,
-            }, format_override=ctx.obj["output_format"])
-        else:
-            # Table format
-            table = Table(title="Theme Validation")
-            table.add_column("Property", style="cyan")
-            table.add_column("Value", style="bold")
+        console.print(f"[green]✓ Theme package is valid![/green]")
 
-            table.add_row("File", str(theme_file))
-            table.add_row("Valid", "✓ Yes")
-            table.add_row("Size", f"{theme_file.stat().st_size / (1024*1024):.2f} MB")
+        # Show theme info
+        table = Table(title="Theme Package Info")
+        table.add_column("Property", style="cyan")
+        table.add_column("Value", style="bold")
 
-            if theme_info:
-                table.add_row("Name", theme_info.get("name", "Unknown"))
-                table.add_row("Version", theme_info.get("version", "Unknown"))
-                table.add_row("Author", theme_info.get("author", "Unknown"))
-                table.add_row("Templates", str(theme_info.get("templates", 0)))
-                table.add_row("Total Files", str(theme_info.get("files", 0)))
-                if theme_info.get("description"):
-                    description = theme_info["description"]
-                    if len(description) > 50:
-                        description = description[:47] + "..."
-                    table.add_row("Description", description)
+        table.add_row("File", str(theme_file))
+        table.add_row("Size", f"{theme_file.stat().st_size:,} bytes")
+        table.add_row("Templates", str(len(templates)))
+        table.add_row("Total Files", str(len(file_list)))
 
-            console.print(table)
+        console.print(table)
 
     except GhostCtlError as e:
-        console.print(f"[red]✗ Theme validation failed: {e}[/red]")
-
-        if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.render({
-                "valid": False,
-                "file": str(theme_file),
-                "error": str(e),
-            }, format_override=ctx.obj["output_format"])
-
+        console.print(f"[red]✗ Validation failed: {e}[/red]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]✗ Validation error: {e}[/red]")
         raise typer.Exit(1)
 
 
 @app.command()
-def backup(
+def current(
     ctx: typer.Context,
-    output_dir: Path = typer.Option(Path("./theme-backups"), "--output-dir", help="Directory to save theme backups"),
 ) -> None:
-    """Backup all themes.
+    """Show the currently active theme.
 
     Examples:
-        # Backup all themes to default directory
-        ghostctl themes backup
+        # Show current theme
+        ghostctl themes current
 
-        # Backup to specific directory
-        ghostctl themes backup --output-dir ./my-backups/
+        # Get as JSON
+        ghostctl themes current -o json
     """
     client, formatter = get_client_and_formatter(ctx)
 
-    if ctx.obj["dry_run"]:
-        console.print(f"[yellow]DRY RUN: Would backup all themes to '{output_dir}'[/yellow]")
-        return
-
     try:
-        # Create output directory
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # Get settings to find active theme
+        settings = client.get_settings()
 
-        # Get all themes
-        themes = client.get_themes()
-        if not themes:
-            console.print("[yellow]No themes found to backup[/yellow]")
-            return
-
-        console.print(f"[blue]Found {len(themes)} themes to backup[/blue]")
-
-        backed_up = []
-        failed = []
-
-        with Progress(console=console) as progress:
-            backup_task = progress.add_task("Backing up themes...", total=len(themes))
-
-            for theme in themes:
-                theme_name = theme.get("name", "unknown")
-                try:
-                    output_file = output_dir / f"{theme_name}.zip"
-                    client.download_theme(theme_name, output_file)
-
-                    backed_up.append({
-                        "name": theme_name,
-                        "file": str(output_file),
-                        "size": output_file.stat().st_size,
-                    })
-
-                    progress.console.print(f"  ✓ {theme_name}")
-
-                except GhostCtlError as e:
-                    failed.append({
-                        "name": theme_name,
-                        "error": str(e),
-                    })
-                    progress.console.print(f"  ✗ {theme_name}: {e}")
-
-                progress.advance(backup_task)
-
-        # Summary
-        console.print(f"[green]Successfully backed up {len(backed_up)} themes[/green]")
-        if failed:
-            console.print(f"[red]Failed to backup {len(failed)} themes[/red]")
+        # Find active_theme in settings
+        active_theme = None
+        if isinstance(settings, dict):
+            active_theme = settings.get('active_theme', 'Unknown')
 
         if ctx.obj["output_format"] in ["json", "yaml"]:
-            formatter.render({
-                "backed_up": backed_up,
-                "failed": failed,
-                "output_directory": str(output_dir),
-                "summary": {
-                    "total": len(themes),
-                    "success": len(backed_up),
-                    "failed": len(failed),
-                }
-            }, format_override=ctx.obj["output_format"])
+            formatter.render({"active_theme": active_theme}, format_override=ctx.obj["output_format"])
+        else:
+            console.print(f"Active theme: [bold cyan]{active_theme}[/bold cyan]")
 
     except GhostCtlError as e:
-        console.print(f"[red]Error backing up themes: {e}[/red]")
+        console.print(f"[red]Error getting current theme: {e}[/red]")
         raise typer.Exit(1)
-
-
-if __name__ == "__main__":
-    app()

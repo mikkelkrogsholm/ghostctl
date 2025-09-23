@@ -274,6 +274,9 @@ class AuthManager:
         # Merge headers
         headers.update(kwargs.pop("headers", {}))
 
+        # Extract timeout from kwargs if provided, otherwise use default
+        timeout = kwargs.pop("timeout", self.timeout)
+
         if debug:
             print(f"[DEBUG AUTH] Making {method} request to {url}")
             print(f"[DEBUG AUTH] Headers: {headers}")
@@ -288,7 +291,7 @@ class AuthManager:
                     url=url,
                     headers=headers,
                     params=params,
-                    timeout=self.timeout,
+                    timeout=timeout,
                     **kwargs,
                 )
             else:
@@ -297,7 +300,7 @@ class AuthManager:
                     url=url,
                     headers=headers,
                     params=params,
-                    timeout=self.timeout,
+                    timeout=timeout,
                     **kwargs,
                 )
 
@@ -320,7 +323,7 @@ class AuthManager:
                         url=url,
                         headers=headers,
                         params=params,
-                        timeout=self.timeout,
+                        timeout=timeout,
                         **kwargs,
                     )
                 else:
@@ -329,7 +332,7 @@ class AuthManager:
                         url=url,
                         headers=headers,
                         params=params,
-                        timeout=self.timeout,
+                        timeout=timeout,
                         **kwargs,
                     )
 
